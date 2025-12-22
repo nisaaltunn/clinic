@@ -32,5 +32,6 @@ public class Dentist {
     @ElementCollection
     private List<String> specialty;
 
-
+    @Transient
+    private DentistSchedule schedule = new DentistSchedule();
 }

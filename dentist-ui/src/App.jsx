@@ -7,6 +7,8 @@ import Doctors from "./pages/Doctors";
 import AddDoctor from "./pages/AddDoctor";
 import Services from "./pages/Services";
 import ServiceDetail from "./pages/ServiceDetail";
+const DentistAppointmentsLazy = React.lazy(() => import('./pages/DentistAppointments'));
+
 
 function App() {
   return (
@@ -29,6 +31,7 @@ function App() {
             <Route path="/services" element={<Services />} />
             <Route path="/doctors" element={<Doctors />} />
             <Route path="/doctors/add" element={<AddDoctor />} />
+            <Route path="/doctors/:dentistId/appointments" element={<React.Suspense fallback={<>Yükleniyor...</>}><DentistAppointmentsLazy /></React.Suspense>} />
             <Route path="/appointment" element={<Appointment />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/hizmet-detay/:id" element={<ServiceDetail />} />

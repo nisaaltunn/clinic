@@ -109,6 +109,9 @@ const Doctors = () => {
               <div className="doc-info">
                 <h3>{doc.fullName}</h3>
                 <span className="doc-title">{doc.title}</span>
+                <button className="doctor-appts-btn" style={{marginTop:14}} onClick={() => navigate(`/doctors/${doc.id}/appointments`)}>
+                  Randevularını Gör
+                </button>
               </div>
             </div>
           ))}

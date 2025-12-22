@@ -1,48 +1,62 @@
 import React, { useState, useEffect } from "react";
+import axios from "axios";
 import "./Appointment.css";
 import { API_ENDPOINTS } from "../config/api";
 
 const Appointment = () => {
-  const [adim, setAdim] = useState(1);
   const bugun = new Date().toISOString().slice(0, 10);
-  const [baslangicTarihi, setBaslangicTarihi] = useState(bugun);
-  const [alinanRandevular, setAlinanRandevular] = useState([]);
-  const [modalAcik, setModalAcik] = useState(false); 
   const [uygunDoktorlar, setUygunDoktorlar] = useState([]);
   const [doktorlarYukleniyor, setDoktorlarYukleniyor] = useState(false);
   const [doktorHatasi, setDoktorHatasi] = useState(null);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [alternatifSaatler, setAlternatifSaatler] = useState([]);
+  
+  // Kayıt durumu
+  const [isRegistered, setIsRegistered] = useState(false);
+  const [patientId, setPatientId] = useState(null); // Hasta ID'si
+  const [registrationData, setRegistrationData] = useState({
+    tc: "",
+    adSoyad: ""
+  });
+  const [registrationError, setRegistrationError] = useState(null);
+  const [registrationLoading, setRegistrationLoading] = useState(false);
+  const [isLoginMode, setIsLoginMode] = useState(false); // true: giriş, false: kayıt
 
-  const [secimler, setSecimler] = useState({
-    tedavi: null,
-    doktor: null,
-    tarih: null,
-    saat: null,
+  const [formData, setFormData] = useState({
+    tedavi: "",
+    doktorId: "",
+    tarih: bugun,
+    saat: "09:00",
     hastaAd: ""
   });
 
   const tedaviler = [
-    { id: 1, ad: "Genel Muayene", sure: "15 dk", specialty: "Genel Muayene" },
-    { id: 2, ad: "Ortodonti", sure: "30 dk", specialty: "Ortodonti" },
-    { id: 3, ad: "Kanal Tedavisi (Endodonti)", sure: "60 dk", specialty: "Kanal Tedavisi" },
-    { id: 4, ad: "Diş Eti Tedavisi (Periodontoloji)", sure: "30 dk", specialty: "Diş Eti Tedavisi" },
-    { id: 5, ad: "Çocuk Diş (Pedodonti)", sure: "30 dk", specialty: "Çocuk Diş" },
-    { id: 6, ad: "Diş İmplantı", sure: "60 dk", specialty: "İmplant" },
-    { id: 7, ad: "Estetik Diş Hekimliği", sure: "60 dk", specialty: "Estetik Diş" },
-    { id: 8, ad: "Çene Cerrahisi", sure: "60 dk", specialty: "Çene Cerrahisi" },
+    { id: 1, ad: "Genel Muayene", sure: 15, specialty: "Genel Muayene" },
+    { id: 2, ad: "Ortodonti", sure: 30, specialty: "Ortodonti" },
+    { id: 3, ad: "Kanal Tedavisi (Endodonti)", sure: 60, specialty: "Kanal Tedavisi" },
+    { id: 4, ad: "Diş Eti Tedavisi (Periodontoloji)", sure: 30, specialty: "Diş Eti Tedavisi" },
+    { id: 5, ad: "Çocuk Diş (Pedodonti)", sure: 30, specialty: "Çocuk Diş" },
+    { id: 6, ad: "Diş İmplantı", sure: 60, specialty: "İmplant" },
+    { id: 7, ad: "Estetik Diş Hekimliği", sure: 60, specialty: "Estetik Diş" },
+    { id: 8, ad: "Çene Cerrahisi", sure: 60, specialty: "Çene Cerrahisi" },
   ];
 
-  // Tedavi seçildiğinde o specialty'ye göre doktorları API'den çek
+  // Branş seçildiğinde o specialty'ye göre doktorları API'den çek
   useEffect(() => {
     const fetchDoctorsBySpecialty = async () => {
-      if (!secimler.tedavi || !secimler.tedavi.specialty) {
+      const secilenTedavi = tedaviler.find(t => t.id === parseInt(formData.tedavi));
+      if (!formData.tedavi || !secilenTedavi || !secilenTedavi.specialty) {
         setUygunDoktorlar([]);
+        setFormData(prev => ({ ...prev, doktorId: "" }));
         return;
       }
 
       try {
         setDoktorlarYukleniyor(true);
         setDoktorHatasi(null);
-        const specialty = secimler.tedavi.specialty;
+        const specialty = secilenTedavi.specialty;
         const response = await fetch(API_ENDPOINTS.DENTISTS_BY_SPECIALTY(specialty));
         
         if (!response.ok) {
@@ -51,6 +65,8 @@ const Appointment = () => {
         
         const data = await response.json();
         setUygunDoktorlar(Array.isArray(data) ? data : []);
+        // Doktor listesi değiştiğinde seçimi sıfırla
+        setFormData(prev => ({ ...prev, doktorId: "" }));
       } catch (err) {
         console.error('Error fetching doctors by specialty:', err);
         setDoktorHatasi("Doktorlar yüklenirken bir hata oluştu. Lütfen tekrar deneyin.");
@@ -61,311 +77,690 @@ const Appointment = () => {
     };
 
     fetchDoctorsBySpecialty();
-  }, [secimler.tedavi]);
+  }, [formData.tedavi]);
 
-  const tarihDegistir = (gunSayisi) => {
-    const yeniTarihObj = new Date(baslangicTarihi);
-    yeniTarihObj.setDate(yeniTarihObj.getDate() + gunSayisi);
-    const yeniTarihStr = yeniTarihObj.toISOString().slice(0, 10);
-    if (yeniTarihStr < bugun) return;
-    setBaslangicTarihi(yeniTarihStr);
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    // Hata ve success mesajlarını temizle
+    if (submitError) setSubmitError(null);
+    if (submitSuccess) setSubmitSuccess(false);
+    // Saat değiştiğinde alternatif saatleri temizle (yeni saat seçildi)
+    if (name === 'saat' && alternatifSaatler.length > 0) {
+      setAlternatifSaatler([]);
+    }
   };
 
-  const getReferansSaatler = () => {
+  const handleRegistrationChange = (e) => {
+    const { name, value } = e.target;
+    // TC için sadece rakam kabul et
+    if (name === 'tc') {
+      const numericValue = value.replace(/\D/g, '');
+      if (numericValue.length <= 11) {
+        setRegistrationData(prev => ({
+          ...prev,
+          [name]: numericValue
+        }));
+      }
+    } else {
+      setRegistrationData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
+    if (registrationError) setRegistrationError(null);
+  };
+
+  // TC ile hasta kontrolü (giriş)
+  const handleLogin = async () => {
+    setRegistrationError(null);
+
+    // Validasyon
+    if (!registrationData.tc || registrationData.tc.length !== 11) {
+      setRegistrationError("TC Kimlik Numarası 11 haneli olmalıdır.");
+      return;
+    }
+
+    try {
+      setRegistrationLoading(true);
+      
+      // TC kimlik numarası validasyonu (basit kontrol)
+      const tcDigits = registrationData.tc.split('').map(Number);
+      if (tcDigits[0] === 0) {
+        setRegistrationError("TC Kimlik Numarası 0 ile başlayamaz.");
+        setRegistrationLoading(false);
+        return;
+      }
+
+      // TC ile hasta kontrolü
+      const response = await axios.get(API_ENDPOINTS.PATIENT_BY_TC(registrationData.tc));
+      
+      if (response.data) {
+        // Hasta bulundu, giriş yap
+        const patientData = response.data;
+        const patientIdValue = patientData.patientId || patientData.id || patientData.patient_id;
+        
+        setPatientId(patientIdValue);
+        setRegistrationData(prev => ({
+          ...prev,
+          adSoyad: patientData.fullName || patientData.name || patientData.adSoyad || ""
+        }));
+        setIsRegistered(true);
+        setFormData(prev => ({
+          ...prev,
+          hastaAd: patientData.fullName || patientData.name || patientData.adSoyad || ""
+        }));
+      } else {
+        setRegistrationError("Bu TC kimlik numarası ile kayıtlı hasta bulunamadı. Lütfen önce kayıt olun.");
+      }
+
+    } catch (err) {
+      console.error('Login error:', err);
+      if (err.response?.status === 404) {
+        setRegistrationError("Bu TC kimlik numarası ile kayıtlı hasta bulunamadı. Lütfen önce kayıt olun.");
+      } else {
+        setRegistrationError("Giriş işlemi sırasında bir hata oluştu. Lütfen tekrar deneyin.");
+      }
+    } finally {
+      setRegistrationLoading(false);
+    }
+  };
+
+  // Yeni hasta kaydı
+  const handleRegistrationSubmit = async (e) => {
+    e.preventDefault();
+    setRegistrationError(null);
+
+    // Validasyon
+    if (!registrationData.tc || registrationData.tc.length !== 11) {
+      setRegistrationError("TC Kimlik Numarası 11 haneli olmalıdır.");
+      return;
+    }
+
+    if (!registrationData.adSoyad || registrationData.adSoyad.trim().length < 3) {
+      setRegistrationError("Lütfen geçerli bir ad soyad giriniz (en az 3 karakter).");
+      return;
+    }
+
+    try {
+      setRegistrationLoading(true);
+      
+      // TC kimlik numarası validasyonu (basit kontrol)
+      const tcDigits = registrationData.tc.split('').map(Number);
+      if (tcDigits[0] === 0) {
+        setRegistrationError("TC Kimlik Numarası 0 ile başlayamaz.");
+        setRegistrationLoading(false);
+        return;
+      }
+
+      // Backend'e hasta kaydı POST isteği
+      const requestBody = {
+        tcNo: registrationData.tc,
+        firstName: registrationData.adSoyad.trim()
+      };
+
+      const response = await axios.post(API_ENDPOINTS.PATIENT_ADD, requestBody);
+
+      // Kayıt başarılı - randevu formunu göster
+      const patientData = response.data;
+      const patientIdValue = patientData.patientId || patientData.id || patientData.patient_id;
+      
+      setPatientId(patientIdValue);
+      setIsRegistered(true);
+      // Hasta adını formData'ya da ekle
+      setFormData(prev => ({
+        ...prev,
+        hastaAd: registrationData.adSoyad.trim()
+      }));
+
+    } catch (err) {
+      console.error('Registration error:', err);
+      const errorMessage = err.response?.data?.message || err.message || "Kayıt işlemi sırasında bir hata oluştu. Lütfen tekrar deneyin.";
+      
+      // Eğer hasta zaten kayıtlıysa
+      if (err.response?.status === 409 || errorMessage.includes("zaten") || errorMessage.includes("mevcut")) {
+        setRegistrationError("Bu TC kimlik numarası ile zaten kayıtlı bir hasta var. Lütfen giriş yapın.");
+        setIsLoginMode(true);
+      } else {
+        setRegistrationError(errorMessage);
+      }
+    } finally {
+      setRegistrationLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitError(null);
+    setSubmitSuccess(false);
+
+    // Validasyon
+    if (!formData.tedavi) {
+      setSubmitError("Lütfen bir branş seçiniz.");
+      return;
+    }
+
+    if (!formData.doktorId) {
+      setSubmitError("Lütfen bir doktor seçiniz.");
+      return;
+    }
+
+    if (!formData.tarih) {
+      setSubmitError("Lütfen bir tarih seçiniz.");
+      return;
+    }
+
+    if (!formData.saat) {
+      setSubmitError("Lütfen bir saat seçiniz.");
+      return;
+    }
+
+    if (!patientId) {
+      setSubmitError("Hasta bilgisi bulunamadı. Lütfen tekrar giriş yapın.");
+      return;
+    }
+
+    try {
+      setSubmitLoading(true);
+
+      // Seçilen tedavi bilgisini al
+      const secilenTedavi = tedaviler.find(t => t.id === parseInt(formData.tedavi));
+      const duration = secilenTedavi ? secilenTedavi.sure : 30;
+
+      // Tarih ve saati birleştirip ISO formatına çevir (2025-12-20T14:00)
+      const startTime = formatSaatToISO(formData.saat);
+
+      const appointmentParams = {
+        patientId: parseInt(patientId),
+        dentistId: parseInt(formData.doktorId),
+        startTime: startTime,
+        durationMinutes: duration
+      };
+
+      // Axios ile POST isteği (body olarak gönder)
+      await axios.post(API_ENDPOINTS.APPOINTMENTS, appointmentParams);
+
+      setSubmitSuccess(true);
+      
+      // Formu temizle
+      setFormData({
+        tedavi: "",
+        doktorId: "",
+        tarih: bugun,
+        saat: "09:00",
+        hastaAd: ""
+      });
+      setUygunDoktorlar([]);
+      setAlternatifSaatler([]);
+
+      // 3 saniye sonra success mesajını gizle
+      setTimeout(() => {
+        setSubmitSuccess(false);
+      }, 3000);
+
+    } catch (err) {
+      console.error('Error creating appointment:', err);
+      const errorData = err.response?.data || {};
+      const errorMessage = errorData.message || err.message || "Randevu oluşturulurken bir hata oluştu. Lütfen tekrar deneyin.";
+      
+      // Eğer alternatif saatler varsa, bunları saat seçimine ekle
+      if (errorData.alternatives && Array.isArray(errorData.alternatives) && errorData.alternatives.length > 0) {
+        // Alternatif saatleri formatla ve state'e ekle
+        const formattedAlternatives = errorData.alternatives.map(alt => formatSaatFromISO(alt));
+        setAlternatifSaatler(formattedAlternatives);
+        // İlk alternatif saati otomatik seç
+        setFormData(prev => ({
+          ...prev,
+          saat: formattedAlternatives[0]
+        }));
+        setSubmitError("Seçtiğiniz saat dolu. Lütfen aşağıdaki alternatif saatlerden birini seçiniz:");
+      } else {
+        setAlternatifSaatler([]);
+        setSubmitError(errorMessage);
+      }
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
+  // ISO formatındaki saati görüntülemek için formatla (2025-01-10T10:15 -> 10:15)
+  const formatSaatFromISO = (isoDateTime) => {
+    const date = new Date(isoDateTime);
+    const saat = date.getHours().toString().padStart(2, '0');
+    const dakika = date.getMinutes().toString().padStart(2, '0');
+    return `${saat}:${dakika}`;
+  };
+
+  // ISO formatına çevir (10:15 -> 2025-01-10T10:15)
+  const formatSaatToISO = (saatStr) => {
+    return `${formData.tarih}T${saatStr}:00`;
+  };
+
+  // Saat seçenekleri oluştur (09:00 - 17:30 arası, 30 dakika aralıklarla)
+  const getSaatSecenekleri = () => {
     const saatler = [];
     for (let saat = 9; saat < 18; saat++) {
       saatler.push(`${saat.toString().padStart(2, '0')}:00`);
-      saatler.push(`${saat.toString().padStart(2, '0')}:30`);
+      if (saat < 17) {
+        saatler.push(`${saat.toString().padStart(2, '0')}:30`);
+      }
     }
     return saatler;
   };
-  const referansSaatler = getReferansSaatler();
 
-  const getGosterilecekSaatler = () => {
-    if (!secimler.tedavi) return referansSaatler;
-    const sure = parseInt(secimler.tedavi.sure);
-    if (sure >= 60) {
-      return referansSaatler.filter(saat => saat.endsWith(":00"));
-    }
-    return referansSaatler;
-  };
-  const gosterilecekSaatler = getGosterilecekSaatler();
+  const saatSecenekleri = getSaatSecenekleri();
+  const secilenTedavi = tedaviler.find(t => t.id === parseInt(formData.tedavi));
 
-  const gunleriGetir = () => {
-    const gunler = [];
-    const referansTarih = new Date(baslangicTarihi);
-    const gunIsimleri = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
-    const ayIsimleri = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+  // Kayıt formu gösteriliyorsa
+  if (!isRegistered) {
+    return (
+      <div className="appointment-container">
+        <div className="appointment-form-wrapper">
+          <h2>{isLoginMode ? "Hasta Girişi" : "Hasta Kayıt"}</h2>
+          <p className="form-description">
+            {isLoginMode 
+              ? "Randevu almak için TC kimlik numaranız ile giriş yapın." 
+              : "Randevu almak için önce kayıt olmanız gerekmektedir."}
+          </p>
 
-    for (let i = 0; i < 5; i++) {
-      let tarih = new Date(referansTarih);
-      tarih.setDate(referansTarih.getDate() + i);
-      gunler.push({
-        obj: tarih,
-        gunAdi: gunIsimleri[tarih.getDay()],
-        tarihYazi: `${tarih.getDate()} ${ayIsimleri[tarih.getMonth()]}`
-      });
-    }
-    return gunler;
-  };
-  const takvimGunleri = gunleriGetir();
+          {/* Mod Değiştirme Butonları */}
+          <div style={{ 
+            display: 'flex', 
+            gap: '10px', 
+            marginBottom: '20px',
+            padding: '10px',
+            background: '#f5f5f5',
+            borderRadius: '8px'
+          }}>
+            <button
+              type="button"
+              onClick={() => {
+                setIsLoginMode(false);
+                setRegistrationError(null);
+                setRegistrationData(prev => ({ ...prev, adSoyad: "" }));
+              }}
+              style={{
+                flex: 1,
+                padding: '10px',
+                background: !isLoginMode ? '#005691' : '#fff',
+                color: !isLoginMode ? '#fff' : '#005691',
+                border: '1px solid #005691',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '0.95rem',
+                transition: 'all 0.2s'
+              }}
+            >
+              Kayıt Ol
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsLoginMode(true);
+                setRegistrationError(null);
+                setRegistrationData(prev => ({ ...prev, adSoyad: "" }));
+              }}
+              style={{
+                flex: 1,
+                padding: '10px',
+                background: isLoginMode ? '#005691' : '#fff',
+                color: isLoginMode ? '#fff' : '#005691',
+                border: '1px solid #005691',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '0.95rem',
+                transition: 'all 0.2s'
+              }}
+            >
+              Giriş Yap
+            </button>
+          </div>
 
-  const getGerekliSlotSayisi = () => {
-    if (!secimler.tedavi) return 1;
-    const sureDk = parseInt(secimler.tedavi.sure);
-    return Math.ceil(sureDk / 30);
-  };
+          {isLoginMode ? (
+            // Giriş Formu
+            <div className="appointment-form">
+              {/* TC Kimlik Numarası */}
+              <div className="form-group">
+                <label htmlFor="tc">
+                  TC Kimlik Numarası <span className="required">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="tc"
+                  name="tc"
+                  value={registrationData.tc}
+                  onChange={handleRegistrationChange}
+                  className="form-input"
+                  placeholder="11 haneli TC Kimlik Numarası"
+                  maxLength={11}
+                  required
+                  disabled={registrationLoading}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleLogin();
+                    }
+                  }}
+                />
+                <small style={{ color: '#666', fontSize: '0.85rem' }}>
+                  Sadece rakam giriniz (11 haneli)
+                </small>
+              </div>
 
-  const tekSlotMusaitMi = (doktorId, gunIndex, saatStr) => {
-    if (takvimGunleri[gunIndex].gunAdi === "Pazar") return false;
+              {/* Hata Mesajı */}
+              {registrationError && (
+                <div className="form-error-alert">
+                  <span>⚠️</span>
+                  <span>{registrationError}</span>
+                </div>
+              )}
 
-    const slotTarihi = takvimGunleri[gunIndex].obj;
-    const simdi = new Date();
+              {/* Giriş Button */}
+              <button
+                type="button"
+                onClick={handleLogin}
+                className="form-submit-btn"
+                disabled={registrationLoading || !registrationData.tc || registrationData.tc.length !== 11}
+              >
+                {registrationLoading ? "Giriş Yapılıyor..." : "Giriş Yap ve Devam Et"}
+              </button>
+            </div>
+          ) : (
+            // Kayıt Formu
+            <form onSubmit={handleRegistrationSubmit} className="appointment-form">
+              {/* TC Kimlik Numarası */}
+              <div className="form-group">
+                <label htmlFor="tc">
+                  TC Kimlik Numarası <span className="required">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="tc"
+                  name="tc"
+                  value={registrationData.tc}
+                  onChange={handleRegistrationChange}
+                  className="form-input"
+                  placeholder="11 haneli TC Kimlik Numarası"
+                  maxLength={11}
+                  required
+                  disabled={registrationLoading}
+                />
+                <small style={{ color: '#666', fontSize: '0.85rem' }}>
+                  Sadece rakam giriniz (11 haneli)
+                </small>
+              </div>
 
-    if (slotTarihi.toDateString() === simdi.toDateString()) {
-       const [saat, dakika] = saatStr.split(":").map(Number);
-       const randevuZamani = new Date(slotTarihi);
-       randevuZamani.setHours(saat, dakika, 0, 0);
-       if (randevuZamani < simdi) return false;
-    }
+              {/* Ad Soyad */}
+              <div className="form-group">
+                <label htmlFor="adSoyad">
+                  Ad Soyad <span className="required">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="adSoyad"
+                  name="adSoyad"
+                  value={registrationData.adSoyad}
+                  onChange={handleRegistrationChange}
+                  className="form-input"
+                  placeholder="Adınız Soyadınız"
+                  required
+                  disabled={registrationLoading}
+                />
+              </div>
 
-    const tarihKey = `${takvimGunleri[gunIndex].tarihYazi} ${takvimGunleri[gunIndex].gunAdi}`;
-    const randevuKey = `${doktorId}-${tarihKey}-${saatStr}`;
-    return !alinanRandevular.some(r => r.key === randevuKey);
-  };
+              {/* Hata Mesajı */}
+              {registrationError && (
+                <div className="form-error-alert">
+                  <span>⚠️</span>
+                  <span>{registrationError}</span>
+                </div>
+              )}
 
-  const randevuMusaitMi = (doktorId, gunIndex, saatStr) => {
-    const slotSayisi = getGerekliSlotSayisi();
-    const baslangicIndex = referansSaatler.indexOf(saatStr);
-    if (baslangicIndex === -1) return false;
-
-    for (let i = 0; i < slotSayisi; i++) {
-      const kontrolIndex = baslangicIndex + i;
-      if (kontrolIndex >= referansSaatler.length) return false;
-      const kontrolSaati = referansSaatler[kontrolIndex];
-      if (!tekSlotMusaitMi(doktorId, gunIndex, kontrolSaati)) {
-        return false;
-      }
-    }
-    return true;
-  };
-
-  const tedaviSec = (tedavi) => {
-    setSecimler({ ...secimler, tedavi, doktor: null });
-    setAdim(2);
-  };
-
-  const randevuSec = (doktor, gun, saat) => {
-    setSecimler({
-      ...secimler,
-      doktor: {
-        id: doktor.id,
-        ad: doktor.fullName,
-        unvan: doktor.title
-      },
-      tarih: `${gun.tarihYazi} ${gun.gunAdi}`,
-      saat
-    });
-    setAdim(3);
-  };
-
-  const tamamla = () => {
-    const slotSayisi = getGerekliSlotSayisi();
-    const baslangicIndex = referansSaatler.indexOf(secimler.saat);
-    const yeniKayitlar = [];
-    const grupId = Date.now(); 
-
-    for (let i = 0; i < slotSayisi; i++) {
-      const gecerliSaat = referansSaatler[baslangicIndex + i];
-      const kayitKey = `${secimler.doktor.id}-${secimler.tarih}-${gecerliSaat}`;
-      
-      yeniKayitlar.push({
-        id: grupId, 
-        key: kayitKey,
-        detay: {
-          tedavi: secimler.tedavi.ad,
-          doktor: secimler.doktor.ad,
-          tarih: secimler.tarih,
-          saat: secimler.saat, 
-          hasta: secimler.hastaAd || "İsimsiz Hasta"
-        }
-      });
-    }
-
-    setAlinanRandevular([...alinanRandevular, ...yeniKayitlar]);
-    alert(`Randevunuz Başarıyla Oluşturuldu!`);
-    setAdim(1);
-
-    setSecimler({ tedavi: null, doktor: null, tarih: null, saat: null, hastaAd: "" });
-  };
-
-  const randevuIptalEt = (grupId) => {
-    if (window.confirm("Bu randevuyu iptal etmek istediğinize emin misiniz?")) {
-      const guncelListe = alinanRandevular.filter(r => r.id !== grupId);
-      setAlinanRandevular(guncelListe);
-    }
-  };
-
-  const gosterilecekRandevular = alinanRandevular.reduce((acc, curr) => {
-    if (!acc.find(item => item.id === curr.id)) {
-      acc.push(curr);
-    }
-    return acc;
-  }, []);
-
+              {/* Submit Button */}
+              <button
+                type="submit"
+                className="form-submit-btn"
+                disabled={registrationLoading || !registrationData.tc || registrationData.tc.length !== 11 || !registrationData.adSoyad.trim()}
+              >
+                {registrationLoading ? "Kayıt Yapılıyor..." : "Kayıt Ol ve Devam Et"}
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="appointment-container">
-      <div className="top-actions">
-         <button className="my-appointments-btn" onClick={() => setModalAcik(true)}>
-            📅 Randevularım ({gosterilecekRandevular.length})
-         </button>
-      </div>
-
-      <div className="stepper-header">
-        <div className="steps">
-          <div className={`step ${adim >= 1 ? "active" : ""}`}><div className="step-circle">1</div><span>Tedavi</span></div>
-          <div className={`step ${adim >= 2 ? "active" : ""}`}><div className="step-circle">2</div><span>Doktor</span></div>
-          <div className={`step ${adim >= 3 ? "active" : ""}`}><div className="step-circle">3</div><span>Onay</span></div>
-        </div>
-      </div>
-
-      <div className="wizard-body">
-        {adim === 1 && (
-          <div className="fade-in">
-            <h3>Lütfen hizmet seçiniz:</h3>
-            <div className="tedavi-list">
-              {tedaviler.map((t) => (
-                <div key={t.id} className="tedavi-card" onClick={() => tedaviSec(t)}>
-                  <span className="tedavi-ad">{t.ad}</span>
-                  <span className="tedavi-time">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                    {t.sure}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {adim === 2 && (
-          <div className="fade-in">
-            <div className="calendar-header">
-              <button className="btn-back" onClick={() => setAdim(1)}>← Geri</button>
-              <div className="filter-info">
-                 <span className="selected-badge">{secimler.tedavi?.ad} ({secimler.tedavi?.sure})</span>
+      <div className="appointment-form-wrapper">
+        <div style={{ marginBottom: '20px', padding: '15px', background: '#e8f5e9', borderRadius: '8px', border: '1px solid #c8e6c9' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <strong style={{ color: '#2e7d32' }}>Kayıtlı Hasta:</strong>
+              <div style={{ color: '#333', marginTop: '5px' }}>
+                {registrationData.adSoyad} - TC: {registrationData.tc}
               </div>
-              <div className="date-navigation">
-                <button className="nav-btn" onClick={() => tarihDegistir(-1)} disabled={baslangicTarihi <= bugun}>‹</button>
-                <input type="date" className="date-input" value={baslangicTarihi} min={bugun} onChange={(e) => setBaslangicTarihi(e.target.value)} />
-                <button className="nav-btn" onClick={() => tarihDegistir(1)}>›</button>
-              </div>
-            </div>
-
-            <div className="calendar-grid">
-              <div className="grid-head">Doktor</div>
-              {takvimGunleri.map((g, i) => (
-                <div key={i} className={`grid-head ${g.gunAdi === 'Pazar' ? 'holiday' : ''}`}>
-                  <strong>{g.tarihYazi}</strong>{g.gunAdi}
-                </div>
-              ))}
-              {doktorlarYukleniyor ? (
-                <div className="no-doctor-warning" style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#666', background: '#f5f5f5' }}>
-                  Doktorlar yükleniyor...
-                </div>
-              ) : doktorHatasi ? (
-                <div className="no-doctor-warning" style={{ gridColumn: '1 / -1' }}>
-                  ⚠️ {doktorHatasi}
-                </div>
-              ) : uygunDoktorlar.length > 0 ? (
-                uygunDoktorlar.map((doc) => {
-                  const docInitial = (doc.fullName || 'DR').charAt(0);
-                  return (
-                    <React.Fragment key={doc.id}>
-                      <div className="doctor-col">
-                        <div className="avatar">{docInitial}</div>
-                        <div>
-                          <div className="doc-title">{doc.title || 'Diş Hekimi'}</div>
-                          <div className="doc-name">{doc.fullName}</div>
-                        </div>
-                      </div>
-                      {takvimGunleri.map((gun, gunIndex) => (
-                        <div key={gunIndex} className="slot-col">
-                          <div className="scrollable-slots">
-                            {gosterilecekSaatler.map((saat) => {
-                              const musait = randevuMusaitMi(doc.id, gunIndex, saat);
-                              return (
-                                <button
-                                  key={saat}
-                                  className={`time-chip ${musait ? 'available' : 'full'}`}
-                                  disabled={!musait}
-                                  onClick={() => musait && randevuSec(doc, gun, saat)}
-                                >
-                                  {saat}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))}
-                    </React.Fragment>
-                  );
-                })
-              ) : (
-                <div className="no-doctor-warning">
-                  {secimler.tedavi ? "Bu tedavi için uygun doktor bulunamadı." : "Uygun doktor bulunamadı."}
+              {patientId && (
+                <div style={{ color: '#666', fontSize: '0.9rem', marginTop: '3px' }}>
+                  Hasta ID: <strong>{patientId}</strong>
                 </div>
               )}
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setIsRegistered(false);
+                setPatientId(null);
+                setRegistrationData({ tc: "", adSoyad: "" });
+                setFormData({
+                  tedavi: "",
+                  doktorId: "",
+                  tarih: bugun,
+                  saat: "09:00",
+                  hastaAd: ""
+                });
+              }}
+              style={{
+                padding: '8px 16px',
+                background: '#fff',
+                border: '1px solid #c8e6c9',
+                borderRadius: '6px',
+                color: '#2e7d32',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+                fontWeight: '600'
+              }}
+            >
+              Değiştir
+            </button>
           </div>
-        )}
+        </div>
 
-        {adim === 3 && (
-          <div className="fade-in summary-box">
-            <div className="check-icon">✓</div>
-            <h3>Randevu Özeti</h3>
-            <div className="summary-card">
-              <div className="s-row"><span>Tedavi:</span> <strong>{secimler.tedavi?.ad}</strong></div>
-              <div className="s-row"><span>Doktor:</span> <strong>{secimler.doktor?.unvan} {secimler.doktor?.ad}</strong></div>
-              <div className="s-row"><span>Zaman:</span> <strong>{secimler.tarih} {secimler.saat}</strong></div>
-            </div>
-            <div style={{ textAlign: 'left', marginBottom: '15px' }}>
-              <label style={{ fontSize: '0.9rem', color: '#666' }}>Ad Soyad:</label>
-              <input type="text" style={{ width: '100%', padding: '10px', marginTop: '5px', border: '1px solid #ddd', borderRadius: '6px' }} placeholder="Adınız Soyadınız" onChange={(e) => setSecimler({ ...secimler, hastaAd: e.target.value })} />
-            </div>
-            <button className="btn-confirm" onClick={tamamla}>Randevuyu Onayla</button>
-            <button className="btn-text" onClick={() => setAdim(2)}>Değiştir</button>
-          </div>
-        )}
+        <h2>Randevu Al</h2>
+        <p className="form-description">Lütfen aşağıdaki bilgileri doldurarak randevu oluşturun.</p>
+
+        <form onSubmit={handleSubmit} className="appointment-form">
+          {/* Branş Seçimi */}
+          <div className="form-group">
+            <label htmlFor="tedavi">
+              Branş <span className="required">*</span>
+            </label>
+            <select
+              id="tedavi"
+              name="tedavi"
+              value={formData.tedavi}
+              onChange={handleInputChange}
+              className="form-select"
+              required
+            >
+              <option value="">Branş Seçiniz</option>
+              {tedaviler.map((tedavi) => (
+                <option key={tedavi.id} value={tedavi.id}>
+                  {tedavi.ad} ({tedavi.sure} dakika)
+                </option>
+              ))}
+            </select>
       </div>
 
-      {modalAcik && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3>Randevularım</h3>
-              <button className="close-btn" onClick={() => setModalAcik(false)}>×</button>
-            </div>
-            <div className="modal-body">
-              {gosterilecekRandevular.length === 0 ? (
-                <p style={{textAlign:'center', color:'#999'}}>Henüz aktif randevunuz bulunmamaktadır.</p>
+          {/* Doktor Seçimi */}
+          <div className="form-group">
+            <label htmlFor="doktorId">
+              Doktor <span className="required">*</span>
+            </label>
+            <select
+              id="doktorId"
+              name="doktorId"
+              value={formData.doktorId}
+              onChange={handleInputChange}
+              className="form-select"
+              required
+              disabled={!formData.tedavi || doktorlarYukleniyor}
+            >
+              <option value="">
+                {doktorlarYukleniyor 
+                  ? "Doktorlar yükleniyor..." 
+                  : !formData.tedavi 
+                    ? "Önce branş seçiniz" 
+                    : uygunDoktorlar.length === 0
+                      ? "Bu branş için doktor bulunamadı"
+                      : "Doktor Seçiniz"}
+              </option>
+              {uygunDoktorlar.map((doktor) => (
+                <option key={doktor.id} value={doktor.id}>
+                  {doktor.fullName} - {doktor.title || 'Diş Hekimi'}
+                </option>
+              ))}
+            </select>
+            {doktorHatasi && (
+              <div className="form-error-message">{doktorHatasi}</div>
+            )}
+        </div>
+
+          {/* Tarih Seçimi */}
+          <div className="form-group">
+            <label htmlFor="tarih">
+              Tarih <span className="required">*</span>
+            </label>
+            <input
+              type="date"
+              id="tarih"
+              name="tarih"
+              value={formData.tarih}
+              onChange={handleInputChange}
+              className="form-input"
+              min={bugun}
+              required
+            />
+      </div>
+
+          {/* Saat Seçimi */}
+          <div className="form-group">
+            <label htmlFor="saat">
+              Saat <span className="required">*</span>
+              {alternatifSaatler.length > 0 && (
+                <span style={{ fontSize: '0.85rem', color: '#005691', marginLeft: '8px', fontWeight: 'normal' }}>
+                  (Alternatif saatler)
+                  </span>
+              )}
+            </label>
+            <select
+              id="saat"
+              name="saat"
+              value={formData.saat}
+              onChange={handleInputChange}
+              className="form-select"
+              required
+            >
+              {alternatifSaatler.length > 0 ? (
+                // Alternatif saatler varsa sadece onları göster
+                <>
+                  <option value="">Alternatif saatlerden birini seçiniz</option>
+                  {alternatifSaatler.map((saat) => (
+                    <option key={saat} value={saat}>
+                      {saat}
+                    </option>
+                  ))}
+                </>
               ) : (
-                gosterilecekRandevular.map((randevu) => (
-                  <div key={randevu.id} className="randevu-item">
-                    <div className="r-info">
-                       <strong>{randevu.detay.tedavi}</strong>
-                       <span>{randevu.detay.doktor}</span>
-                       <small>{randevu.detay.tarih} - {randevu.detay.saat}</small>
-                       <small style={{color:'#1e88e5'}}>Hasta: {randevu.detay.hasta}</small>
-                    </div>
-                    <button className="cancel-btn" onClick={() => randevuIptalEt(randevu.id)}>İptal Et</button>
-                  </div>
+                // Normal saatler
+                saatSecenekleri.map((saat) => (
+                  <option key={saat} value={saat}>
+                    {saat}
+                  </option>
                 ))
               )}
+            </select>
+          </div>
+
+
+          {/* Hata Mesajı */}
+          {submitError && (
+            <div className="form-error-alert">
+              <span>⚠️</span>
+              <span>{submitError}</span>
+            </div>
+          )}
+
+          {/* Başarı Mesajı */}
+          {submitSuccess && (
+            <div className="form-success-alert">
+              <span>✓</span>
+              <span>Randevunuz başarıyla oluşturuldu!</span>
+          </div>
+        )}
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            className="form-submit-btn"
+            disabled={submitLoading || !formData.tedavi || !formData.doktorId}
+          >
+            {submitLoading ? "Randevu Oluşturuluyor..." : "Randevu Oluştur"}
+          </button>
+
+          {/* Özet Bilgi */}
+          {secilenTedavi && formData.doktorId && (
+            <div className="appointment-summary">
+              <h3>Randevu Özeti</h3>
+              <div className="summary-item">
+                <span className="summary-label">Branş:</span>
+                <span className="summary-value">{secilenTedavi.ad}</span>
+              </div>
+              <div className="summary-item">
+                <span className="summary-label">Doktor:</span>
+                <span className="summary-value">
+                  {uygunDoktorlar.find(d => d.id === parseInt(formData.doktorId))?.fullName || "-"}
+                </span>
+              </div>
+              <div className="summary-item">
+                <span className="summary-label">Tarih:</span>
+                <span className="summary-value">
+                  {new Date(formData.tarih).toLocaleDateString('tr-TR', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </span>
+                        </div>
+              <div className="summary-item">
+                <span className="summary-label">Saat:</span>
+                <span className="summary-value">{formData.saat}</span>
+                      </div>
+              <div className="summary-item">
+                <span className="summary-label">Süre:</span>
+                <span className="summary-value">{secilenTedavi.sure} dakika</span>
             </div>
           </div>
-        </div>
-      )}
+        )}
+        </form>
+      </div>
 
     </div>
   );

@@ -1,12 +1,190 @@
 .appointment-container {
-  max-width: 950px;
+  max-width: 900px;
   margin: 30px auto;
+  padding: 40px 20px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.appointment-form-wrapper {
   background: #ffffff;
   border-radius: 12px;
+  padding: 40px;
   box-shadow: 0 5px 20px rgba(0,0,0,0.05);
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  overflow: hidden;
-  text-align: left;
+}
+
+.appointment-form-wrapper h2 {
+  color: #005691;
+  font-size: 2rem;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.form-description {
+  color: #666;
+  text-align: center;
+  margin-bottom: 30px;
+  font-size: 1rem;
+}
+
+.appointment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  font-weight: 600;
+  color: #333;
+  font-size: 0.95rem;
+}
+
+.required {
+  color: #e53935;
+}
+
+.optional {
+  color: #999;
+  font-weight: normal;
+  font-size: 0.85rem;
+}
+
+.form-input,
+.form-select {
+  padding: 12px 16px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background-color: #fff;
+}
+
+.form-input:focus,
+.form-select:focus {
+  outline: none;
+  border-color: #005691;
+  box-shadow: 0 0 0 3px rgba(0, 86, 145, 0.1);
+}
+
+.form-select:disabled {
+  background-color: #f5f5f5;
+  cursor: not-allowed;
+  color: #999;
+}
+
+.form-error-message {
+  color: #e53935;
+  font-size: 0.85rem;
+  margin-top: -4px;
+}
+
+.form-error-alert {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background-color: #fee;
+  color: #c33;
+  border: 1px solid #fcc;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
+.form-error-alert span:first-child {
+  font-size: 1.2rem;
+}
+
+.form-success-alert {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background-color: #efe;
+  color: #3c3;
+  border: 1px solid #cfc;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
+.form-success-alert span:first-child {
+  font-size: 1.2rem;
+}
+
+.form-submit-btn {
+  padding: 14px 32px;
+  background: #005691;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 10px;
+}
+
+.form-submit-btn:hover:not(:disabled) {
+  background: #004080;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 86, 145, 0.3);
+}
+
+.form-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.appointment-summary {
+  margin-top: 30px;
+  padding: 20px;
+  background: #f8fbff;
+  border: 1px solid #e3f2fd;
+  border-radius: 8px;
+}
+
+.appointment-summary h3 {
+  color: #005691;
+  font-size: 1.3rem;
+  margin-bottom: 15px;
+  margin-top: 0;
+}
+
+.summary-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid #e3f2fd;
+}
+
+.summary-item:last-child {
+  border-bottom: none;
+}
+
+.summary-label {
+  font-weight: 600;
+  color: #666;
+}
+
+.summary-value {
+  color: #333;
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .appointment-form-wrapper {
+    padding: 24px;
+  }
+  
+  .appointment-container {
+    padding: 20px 10px;
+  }
 }
 
 .stepper-header {
@@ -356,6 +534,72 @@ h3 { margin-top: 0; color: #333; font-weight: 600; margin-bottom: 25px; }
 }
 .cancel-btn:hover {
   background: #ffcdd2;
+}
+
+/* Alternatif Saatler Modal Stilleri */
+.alternatif-saatler-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.alternatif-saat-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  border: 2px solid #005691;
+  border-radius: 8px;
+  background: #fff;
+  color: #005691;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.alternatif-saat-btn:hover:not(:disabled) {
+  background: #005691;
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 86, 145, 0.3);
+}
+
+.alternatif-saat-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.saat-icon {
+  font-size: 1.5rem;
+}
+
+.saat-text {
+  font-size: 1.1rem;
+}
+
+.modal-cancel-btn {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #f5f5f5;
+  color: #666;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.modal-cancel-btn:hover:not(:disabled) {
+  background: #e0e0e0;
+}
+
+.modal-cancel-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 @keyframes fadeIn {

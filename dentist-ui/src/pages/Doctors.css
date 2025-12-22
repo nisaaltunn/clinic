@@ -91,6 +91,24 @@
   font-weight: 600;
 }
 
+.doctor-appts-btn {
+  background: #e3f2fd;
+  border: none;
+  color: #015187;
+  padding: 8px 18px;
+  font-size: 1rem;
+  border-radius: 16px;
+  cursor: pointer;
+  box-shadow: 0 1px 4px #cfe5f3;
+  font-weight: 600;
+  margin-top: 10px;
+  transition: background 0.2s,color 0.2s;
+}
+.doctor-appts-btn:hover {
+  background: #1565c0;
+  color: white;
+}
+
 .doc-title {
   display: inline-block;
   background-color: #f0f7ff;
