@@ -10,7 +10,7 @@ public class MinEndTimeHeap {
     public void add(LocalDateTime endTime) {
         heap.add(endTime);
     }
-
+//en erken bitiş zamanını çeker
     public LocalDateTime poll() {
         return heap.poll();
     }

@@ -6,6 +6,9 @@ export const API_ENDPOINTS = {
   DENTISTS_BY_SPECIALTY: (specialty) => `${API_BASE_URL}/dentists/specialty/${encodeURIComponent(specialty)}`,
   DENTIST_APPOINTMENTS_SORTED: (id) => `${API_BASE_URL}/dentists/${id}/sorted`,
   APPOINTMENTS: `${API_BASE_URL}/appointments`,
+  EMERGENCY_ASSIGN: (patientId) => `${API_BASE_URL}/emergency/assign/${patientId}`,
+  EMERGENCY_QUEUE: (dentistId) => `${API_BASE_URL}/emergency/queue/${dentistId}`,
+  EMERGENCY_NEXT: (dentistId) => `${API_BASE_URL}/emergency/next/${dentistId}`,
   PATIENT_ADD: `${API_BASE_URL}/patient/add`,
   PATIENT_BY_TC: (tc) => `${API_BASE_URL}/patient/tc/${tc}`,
 };

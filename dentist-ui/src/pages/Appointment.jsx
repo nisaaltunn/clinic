@@ -9,8 +9,10 @@ const Appointment = () => {
   const [doktorlarYukleniyor, setDoktorlarYukleniyor] = useState(false);
   const [doktorHatasi, setDoktorHatasi] = useState(null);
   const [submitLoading, setSubmitLoading] = useState(false);
+  const [emergencyLoading, setEmergencyLoading] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [emergencySuccess, setEmergencySuccess] = useState(false);
   const [alternatifSaatler, setAlternatifSaatler] = useState([]);
   
   // Kayıt durumu
@@ -29,7 +31,8 @@ const Appointment = () => {
     doktorId: "",
     tarih: bugun,
     saat: "09:00",
-    hastaAd: ""
+    hastaAd: "",
+    acil: false
   });
 
   const tedaviler = [
@@ -80,10 +83,10 @@ const Appointment = () => {
   }, [formData.tedavi]);
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: type === 'checkbox' ? checked : value
     }));
     // Hata ve success mesajlarını temizle
     if (submitError) setSubmitError(null);
@@ -277,7 +280,8 @@ const Appointment = () => {
         patientId: parseInt(patientId),
         dentistId: parseInt(formData.doktorId),
         startTime: startTime,
-        durationMinutes: duration
+        durationMinutes: duration,
+        urgent: false
       };
 
       // Axios ile POST isteği (body olarak gönder)
@@ -291,7 +295,8 @@ const Appointment = () => {
         doktorId: "",
         tarih: bugun,
         saat: "09:00",
-        hastaAd: ""
+        hastaAd: "",
+        acil: false
       });
       setUygunDoktorlar([]);
       setAlternatifSaatler([]);
@@ -323,6 +328,39 @@ const Appointment = () => {
       }
     } finally {
       setSubmitLoading(false);
+    }
+  };
+
+  // Acil randevu butonu
+  const handleEmergencyAppointment = async () => {
+    setSubmitError(null);
+    setSubmitSuccess(false);
+    setEmergencySuccess(false);
+
+    if (!patientId) {
+      setSubmitError("Hasta bilgisi bulunamadı. Lütfen tekrar giriş yapın.");
+      return;
+    }
+
+    try {
+      setEmergencyLoading(true);
+
+      // Acil randevu endpoint'ine istek at
+      await axios.post(API_ENDPOINTS.EMERGENCY_ASSIGN(patientId));
+
+      setEmergencySuccess(true);
+
+      // 3 saniye sonra success mesajını gizle
+      setTimeout(() => {
+        setEmergencySuccess(false);
+      }, 3000);
+
+    } catch (err) {
+      console.error('Error creating emergency appointment:', err);
+      const errorMessage = err.response?.data?.message || err.message || "Acil randevu oluşturulurken bir hata oluştu. Lütfen tekrar deneyin.";
+      setSubmitError(errorMessage);
+    } finally {
+      setEmergencyLoading(false);
     }
   };
 
@@ -563,7 +601,8 @@ const Appointment = () => {
                   doktorId: "",
                   tarih: bugun,
                   saat: "09:00",
-                  hastaAd: ""
+                  hastaAd: "",
+                  acil: false
                 });
               }}
               style={{
@@ -698,6 +737,42 @@ const Appointment = () => {
             </select>
           </div>
 
+          {/* Acil Randevu Butonu */}
+          <div className="form-group">
+            <button
+              type="button"
+              onClick={handleEmergencyAppointment}
+              disabled={emergencyLoading || !patientId}
+              style={{
+                width: '100%',
+                padding: '12px 20px',
+                background: '#c22',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '1rem',
+                fontWeight: '600',
+                cursor: emergencyLoading || !patientId ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s',
+                opacity: emergencyLoading || !patientId ? 0.6 : 1
+              }}
+              onMouseEnter={(e) => {
+                if (!emergencyLoading && patientId) {
+                  e.target.style.background = '#a00';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!emergencyLoading && patientId) {
+                  e.target.style.background = '#c22';
+                }
+              }}
+            >
+              {emergencyLoading ? "Acil Randevu Oluşturuluyor..." : "🚨 Acil Randevu Al"}
+            </button>
+            <small style={{ color: '#666', fontSize: '0.85rem', marginTop: '8px', display: 'block', textAlign: 'center' }}>
+              Acil durumlarda bu butona tıklayarak randevu alabilirsiniz
+            </small>
+          </div>
 
           {/* Hata Mesajı */}
           {submitError && (
@@ -712,8 +787,16 @@ const Appointment = () => {
             <div className="form-success-alert">
               <span>✓</span>
               <span>Randevunuz başarıyla oluşturuldu!</span>
-          </div>
-        )}
+            </div>
+          )}
+
+          {/* Acil Randevu Başarı Mesajı */}
+          {emergencySuccess && (
+            <div className="form-success-alert" style={{ background: '#ffe0e0', border: '1px solid #c22' }}>
+              <span>🚨</span>
+              <span>Acil randevunuz başarıyla oluşturuldu!</span>
+            </div>
+          )}
 
           {/* Submit Button */}
           <button
@@ -756,7 +839,7 @@ const Appointment = () => {
               <div className="summary-item">
                 <span className="summary-label">Süre:</span>
                 <span className="summary-value">{secilenTedavi.sure} dakika</span>
-            </div>
+              </div>
           </div>
         )}
         </form>

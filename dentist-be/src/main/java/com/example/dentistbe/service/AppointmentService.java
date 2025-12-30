@@ -8,7 +8,7 @@ import com.example.dentistbe.repository.DentistRepository;
 import com.example.dentistbe.repository.PatientRepository;
 import com.example.dentistbe.utils.IntervalTree;
 import com.example.dentistbe.utils.MinEndTimeHeap;
-import com.example.dentistbe.utils.WaitingList;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import com.example.dentistbe.utils.QuickSortAppointment;
@@ -25,8 +25,6 @@ public class AppointmentService {
     private final DentistRepository dentistRepository;
     private final PatientRepository patientRepository;
 
-    private final WaitingList waitingList = new WaitingList();
-
     public Appointment createAppointment(
             Long patientId,
             Long dentistId,
@@ -40,11 +38,11 @@ public class AppointmentService {
 
         LocalDateTime endTime = startTime.plusMinutes(durationMinutes);
 
-        // 🔹 1️⃣ Doktorun mevcut randevularını DB’den al
+        // Doktorun mevcut randevularını al
         List<Appointment> existingAppointments =
                 appointmentRepository.findByDentistId(dentistId);
 
-        // 🔹 2️⃣ Interval Tree + Min-Heap oluştur
+        // Interval Tree + Min-Heap
         IntervalTree intervalTree = new IntervalTree();
         MinEndTimeHeap minHeap = new MinEndTimeHeap();
 
@@ -53,17 +51,9 @@ public class AppointmentService {
             minHeap.add(a.getEndTime());
         }
 
-        // 🔴 3️⃣ ÇAKIŞMA KONTROLÜ
+        // ❌ ÇAKIŞMA VARSA → Alternatif saat öner
         if (intervalTree.hasOverlap(startTime, endTime)) {
 
-            waitingList.add(
-                    patientId,
-                    dentistId,
-                    startTime,
-                    durationMinutes
-            );
-           // waitingList.add(patientId, startTime);
-            // 🔁 Alternatif saatler üret (en fazla 3 tane)
             List<LocalDateTime> alternatives =
                     generateAlternativeSlots(
                             intervalTree,
@@ -73,14 +63,10 @@ public class AppointmentService {
                             startTime
                     );
 
-            throw new RuntimeException(
-                    "Bu saat aralığı dolu. Alternatifler: " + alternatives
-            );
+            throw new RuntimeException("Bu saat dolu. Alternatifler: " + alternatives);
         }
 
-
-
-        // ✅ 4️⃣ UYGUN → KAYDET
+        // ✔️ ÇAKIŞMA YOK → RANDEVU KAYDET
         Appointment appointment = new Appointment();
         appointment.setPatient(patient);
         appointment.setDentist(dentist);
@@ -90,27 +76,7 @@ public class AppointmentService {
         return appointmentRepository.save(appointment);
     }
 
-    // 🔹 Min-Heap kullanarak alternatif saat üretme
-    private List<LocalDateTime> generateAlternativeSlots(
-            IntervalTree tree,
-            MinEndTimeHeap heap,
-            int durationMinutes,
-            int limit
-    ) {
-        List<LocalDateTime> alternatives = new ArrayList<>();
-
-        while (!heap.isEmpty() && alternatives.size() < limit) {
-            LocalDateTime candidateStart = heap.poll();
-            LocalDateTime candidateEnd =
-                    candidateStart.plusMinutes(durationMinutes);
-
-            if (!tree.hasOverlap(candidateStart, candidateEnd)) {
-                alternatives.add(candidateStart);
-            }
-        }
-
-        return alternatives;
-    }
+    // Alternatif saat üret
     private List<LocalDateTime> generateAlternativeSlots(
             IntervalTree tree,
             MinEndTimeHeap heap,
@@ -120,31 +86,18 @@ public class AppointmentService {
     ) {
         List<LocalDateTime> alternatives = new ArrayList<>();
 
-        LocalDateTime workStart = requestedStart
-                .toLocalDate()
-                .atTime(9, 0);
-
-        LocalDateTime workEnd = requestedStart
-                .toLocalDate()
-                .atTime(18, 0);
+        LocalDateTime workStart = requestedStart.toLocalDate().atTime(9, 0);
+        LocalDateTime workEnd = requestedStart.toLocalDate().atTime(18, 0);
 
         while (!heap.isEmpty() && alternatives.size() < limit) {
 
             LocalDateTime candidateStart = heap.poll();
 
-            // ❌ Aynı gün değilse geç
-            if (!candidateStart.toLocalDate().equals(requestedStart.toLocalDate())) {
-                continue;
-            }
-
-            // ❌ Mesai dışıysa geç
+            if (!candidateStart.toLocalDate().equals(requestedStart.toLocalDate())) continue;
             if (candidateStart.isBefore(workStart) ||
-                    candidateStart.plusMinutes(durationMinutes).isAfter(workEnd)) {
-                continue;
-            }
+                    candidateStart.plusMinutes(durationMinutes).isAfter(workEnd)) continue;
 
-            LocalDateTime candidateEnd =
-                    candidateStart.plusMinutes(durationMinutes);
+            LocalDateTime candidateEnd = candidateStart.plusMinutes(durationMinutes);
 
             if (!tree.hasOverlap(candidateStart, candidateEnd)) {
                 alternatives.add(candidateStart);
@@ -154,23 +107,16 @@ public class AppointmentService {
         return alternatives;
     }
 
-    public List<Dentist> getDentistsBySpecialty(String specialty) {
-        return dentistRepository.findBySpecialty(specialty);
-    }
-
-
+    // Doktorun randevularını sıralı döndür
     public List<Appointment> getAppointmentsByDentistSorted(Long dentistId) {
-
-        List<Appointment> appointments =
-                appointmentRepository.findByDentistId(dentistId);
-
+        List<Appointment> appointments = appointmentRepository.findByDentistId(dentistId);
         if (appointments != null && appointments.size() > 1) {
             QuickSortAppointment.sortByStartTime(appointments);
         }
-
         return appointments;
     }
-
-
-
+    public List<Dentist> getDentistsBySpecialty(String specialty) {
+        return dentistRepository.findBySpecialty(specialty);
+    }
 }
+
